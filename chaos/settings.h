@@ -27,7 +27,7 @@
 #define SETTINGS_H
 
 // Wake up settings - make it faster
-#define WAKE_UP_INTERVAL_MINUTES 0.05  // 3 seconds
+#define WAKE_UP_INTERVAL_MINUTES 0.01
 
 // Lorenz attractor settings
 #define LORENZ_POINTS_PER_UPDATE 50
