@@ -26,12 +26,24 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-// Wake up settings - make it faster
-#define WAKE_UP_INTERVAL_MINUTES 0.01
+#define WAKE_UP_INTERVAL_MINUTES (0.5/60.0)
 
-// Lorenz attractor settings
-#define LORENZ_POINTS_PER_UPDATE 50
-#define LORENZ_MAX_POINTS 300
-#define LORENZ_ROTATION_SPEED 0.5
+#define LORENZ_POINTS_PER_UPDATE 5
+#define LORENZ_MAX_POINTS 500
+#define LORENZ_ROTATION_SPEED 0.0523598776
+
+// Timezone offset for moon phase calculation (in hours from UTC)
+// Examples:
+//   Amsterdam (CET): 1  (winter) or 2 (summer/CEST)
+//   New York (EST): -5  (winter) or -4 (summer/EDT)
+//   Tokyo (JST): 9
+//   London (GMT): 0    (winter) or 1 (summer/BST)
+//   Los Angeles (PST): -8 (winter) or -7 (summer/PDT)
+#define TIMEZONE_OFFSET_HOURS 1  // Amsterdam (CET) - change to 2 for CEST (summer time)
+
+// Location coordinates for sunrise/sunset calculation
+// Amsterdam coordinates: 52.3676° N, 4.9041° E
+#define LATITUDE 52.3676   // Latitude in degrees (positive = North, negative = South)
+#define LONGITUDE 4.9041   // Longitude in degrees (positive = East, negative = West)
 
 #endif

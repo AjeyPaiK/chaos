@@ -23,24 +23,168 @@
  * 
  * A mesmerizing watch face for the Watchy ESP32 smartwatch featuring a real-time
  * evolving Lorenz attractor pattern. Watch the beautiful chaos unfold on your wrist
- * with a continuously updating 3D trajectory that rotates and evolves every 3 seconds.
+ * with a continuously updating 3D trajectory that rotates and evolves.
  */
 
 #define ARDUINO_WATCHY_V20
 #include <Watchy.h>
 #include "settings.h"
 #include "esp_sleep.h"
+#include <math.h>
+
+#ifndef BTN_PIN_MASK
+  #ifndef MENU_BTN_PIN
+    #define MENU_BTN_PIN 26
+  #endif
+  #ifndef BACK_BTN_PIN
+    #define BACK_BTN_PIN 25
+  #endif
+  #ifndef UP_BTN_PIN
+    #define UP_BTN_PIN 32
+  #endif
+  #ifndef DOWN_BTN_PIN
+    #define DOWN_BTN_PIN 4
+  #endif
+  #define BTN_PIN_MASK ((1ULL << MENU_BTN_PIN) | (1ULL << BACK_BTN_PIN) | (1ULL << UP_BTN_PIN) | (1ULL << DOWN_BTN_PIN))
+#endif
 
 RTC_DATA_ATTR float g_pos[3] = {1.0, 1.0, 1.0};
-RTC_DATA_ATTR float g_trajectory[300][3];
+RTC_DATA_ATTR float g_trajectory[LORENZ_MAX_POINTS][3];
 RTC_DATA_ATTR int g_pointCount = 0;
 RTC_DATA_ATTR int g_trajectoryIndex = 0;
 RTC_DATA_ATTR float g_rotationAngle = 0.0;
-RTC_DATA_ATTR bool g_initialized = false;
+
+extern bool alreadyInMenu;
+extern long gmtOffset;
+extern tmElements_t bootTime;
 
 class WatchFace : public Watchy {
   using Watchy::Watchy;
   public:
+    void init(String datetime = "") {
+      esp_sleep_wakeup_cause_t wakeup_reason;
+      wakeup_reason = esp_sleep_get_wakeup_cause();
+      #ifdef ARDUINO_ESP32S3_DEV
+        Wire.begin(WATCHY_V3_SDA, WATCHY_V3_SCL);
+      #else
+        Wire.begin(SDA, SCL);
+      #endif
+      RTC.init();
+      display.epd2.initWatchy();
+
+      switch (wakeup_reason) {
+      case ESP_SLEEP_WAKEUP_TIMER:
+        RTC.read(currentTime);
+        switch (guiState) {
+        case WATCHFACE_STATE:
+          showWatchFace(true);
+          if (settings.vibrateOClock) {
+            if (currentTime.Minute == 0 && currentTime.Second == 0) {
+              vibMotor(75, 4);
+            }
+          }
+          break;
+        case MAIN_MENU_STATE:
+          if (alreadyInMenu) {
+            guiState = WATCHFACE_STATE;
+            showWatchFace(false);
+          } else {
+            alreadyInMenu = true;
+          }
+          break;
+        }
+        break;
+      #ifndef ARDUINO_ESP32S3_DEV
+      case ESP_SLEEP_WAKEUP_EXT0:
+        RTC.read(currentTime);
+        switch (guiState) {
+        case WATCHFACE_STATE:
+          showWatchFace(true);
+          if (settings.vibrateOClock) {
+            if (currentTime.Minute == 0) {
+              vibMotor(75, 4);
+            }
+          }
+          break;
+        case MAIN_MENU_STATE:
+          if (alreadyInMenu) {
+            guiState = WATCHFACE_STATE;
+            showWatchFace(false);
+          } else {
+            alreadyInMenu = true;
+          }
+          break;
+        }
+        break;
+      #endif
+      case ESP_SLEEP_WAKEUP_EXT1:
+        RTC.read(currentTime);
+        handleButtonPress();
+        break;
+      #ifdef ARDUINO_ESP32S3_DEV
+      case ESP_SLEEP_WAKEUP_EXT0:
+        pinMode(USB_DET_PIN, INPUT);
+        USB_PLUGGED_IN = (digitalRead(USB_DET_PIN) == 1);
+        if(guiState == WATCHFACE_STATE){
+          RTC.read(currentTime);
+          showWatchFace(true);
+        }
+        break;
+      #endif
+      default:
+        Watchy::init(datetime);
+        break;
+      }
+      deepSleep();
+    }
+    
+    void deepSleep() {
+      display.hibernate();
+      RTC.clearAlarm();
+      
+      #ifdef ARDUINO_ESP32S3_DEV
+      esp_sleep_enable_ext0_wakeup((gpio_num_t)USB_DET_PIN, USB_PLUGGED_IN ? LOW : HIGH);
+      rtc_gpio_set_direction((gpio_num_t)USB_DET_PIN, RTC_GPIO_MODE_INPUT_ONLY);
+      rtc_gpio_pullup_en((gpio_num_t)USB_DET_PIN);
+
+      rtc_gpio_set_direction((gpio_num_t)MENU_BTN_PIN, RTC_GPIO_MODE_INPUT_ONLY);
+      rtc_gpio_pullup_en((gpio_num_t)MENU_BTN_PIN);
+      rtc_gpio_set_direction((gpio_num_t)BACK_BTN_PIN, RTC_GPIO_MODE_INPUT_ONLY);
+      rtc_gpio_pullup_en((gpio_num_t)BACK_BTN_PIN);
+      rtc_gpio_set_direction((gpio_num_t)UP_BTN_PIN, RTC_GPIO_MODE_INPUT_ONLY);
+      rtc_gpio_pullup_en((gpio_num_t)UP_BTN_PIN);
+      rtc_gpio_set_direction((gpio_num_t)DOWN_BTN_PIN, RTC_GPIO_MODE_INPUT_ONLY);
+      rtc_gpio_pullup_en((gpio_num_t)DOWN_BTN_PIN);
+
+      esp_sleep_enable_ext1_wakeup(
+          BTN_PIN_MASK,
+          ESP_EXT1_WAKEUP_ANY_LOW);
+
+      rtc_clk_32k_enable(true);
+      
+      uint64_t wakeup_us = (uint64_t)(WAKE_UP_INTERVAL_MINUTES * 60.0 * 1000000.0);
+      if (wakeup_us < 1000000) wakeup_us = 1000000;
+      esp_sleep_enable_timer_wakeup(wakeup_us);
+      #else
+      const uint64_t ignore = 0b11110001000000110000100111000010;
+      for (int i = 0; i < GPIO_NUM_MAX; i++) {
+        if ((ignore >> i) & 0b1)
+          continue;
+        pinMode(i, INPUT);
+      }
+      #ifdef BTN_PIN_MASK
+        esp_sleep_enable_ext1_wakeup(
+            BTN_PIN_MASK,
+            ESP_EXT1_WAKEUP_ANY_HIGH);
+      #endif
+      
+      uint64_t wakeup_us = (uint64_t)(WAKE_UP_INTERVAL_MINUTES * 60.0 * 1000000.0);
+      if (wakeup_us < 1000000) wakeup_us = 1000000;
+      esp_sleep_enable_timer_wakeup(wakeup_us);
+      #endif
+      esp_deep_sleep_start();
+    }
+    
     void drawWatchFace() {
       
       int16_t  x1, y1;
@@ -74,6 +218,12 @@ class WatchFace : public Watchy {
       
       display.setCursor(5, 19);
       display.print(textstring);
+      
+      display.getTextBounds(textstring, 0, 0, &x1, &y1, &w, &h);
+      int timeWidth = w;
+      int timeEndX = 5 + timeWidth;
+
+      drawMoonPhase();
 
       display.setFont(&FreeMonoBold9pt7b);
       textstring = dayShortStr(currentTime.Wday);
@@ -83,11 +233,33 @@ class WatchFace : public Watchy {
       textstring += currentTime.Month;
       
       display.getTextBounds(textstring, 0, 0, &x1, &y1, &w, &h);
-      display.setCursor(200-w-5, 19);
+      int moonRadius = 10;
+      int moonX = 200 - moonRadius - 8;
+      int moonLeftEdge = moonX - moonRadius;
+      int maxDateX = moonLeftEdge - 5;
+      
+      int dateStartX = timeEndX + 12;
+      
+      if (dateStartX + w > maxDateX) {
+        dateStartX = maxDateX - w;
+        if (dateStartX < timeEndX + 5) {
+          dateStartX = timeEndX + 5;
+        }
+      }
+      
+      if (dateStartX + w > 200) {
+        dateStartX = 200 - w;
+      }
+      
+      display.setCursor(dateStartX, 19);
       display.print(textstring);
 
       float VBAT = getBatteryVoltage();
-      bool isBatteryFull = (VBAT >= 4.2);
+      float batteryMin = 3.0;
+      float batteryMax = 4.2;
+      float batteryPercent = (VBAT - batteryMin) / (batteryMax - batteryMin);
+      if (batteryPercent < 0.0) batteryPercent = 0.0;
+      if (batteryPercent > 1.0) batteryPercent = 1.0;
       
       int batteryX = 200 - 25;
       int batteryY = 200 - 15;
@@ -97,14 +269,17 @@ class WatchFace : public Watchy {
       display.drawRect(batteryX, batteryY, batteryWidth, batteryHeight, GxEPD_BLACK);
       display.drawRect(batteryX + batteryWidth, batteryY + 2, 2, 6, GxEPD_BLACK);
       
-      if (isBatteryFull) {
-        display.fillRect(batteryX + 1, batteryY + 1, batteryWidth - 2, batteryHeight - 2, GxEPD_BLACK);
+      int fillWidth = (int)((batteryWidth - 2) * batteryPercent);
+      if (fillWidth > 0) {
+        display.fillRect(batteryX + 1, batteryY + 1, fillWidth, batteryHeight - 2, GxEPD_BLACK);
       }
 
       textstring = String(sensor.getCounter());
       display.getTextBounds(textstring, 0, 0, &x1, &y1, &w, &h);
       display.setCursor(5, 200-15 + 5);
       display.print(textstring);
+
+      drawSunriseSunset();
 
     }
 
@@ -114,42 +289,19 @@ class WatchFace : public Watchy {
     static constexpr float LORENZ_BETA = 8.0/3.0;
     static constexpr float DT = 0.05;
     static constexpr int MAX_POINTS = LORENZ_MAX_POINTS;
-    static constexpr float SCALE_FACTOR = 12.0;
-    
-    float pos[3] = {1.0, 1.0, 1.0};
-    float trajectory[MAX_POINTS][3];
-    int pointCount = 0;
-    int trajectoryIndex = 0;
-    float rotationAngle = 0.0;
-    bool initialized = false;
 
     void drawLorenzAttractor() {
-      for (int i = 0; i < 50; i++) {
+      for (int i = 0; i < LORENZ_POINTS_PER_UPDATE; i++) {
         updateLorenz();
         addTrajectoryPoint();
       }
       
-      g_rotationAngle += 0.2;
+      g_rotationAngle += LORENZ_ROTATION_SPEED;
       if (g_rotationAngle > 2 * PI) {
         g_rotationAngle -= 2 * PI;
       }
       
       drawTrajectory();
-    }
-    
-    void drawSimplePattern() {
-      for (int i = 0; i < 100; i++) {
-        float angle = i * 0.1 + g_rotationAngle;
-        int x = 100 + (int)(30 * cos(angle));
-        int y = 100 + (int)(30 * sin(angle));
-        
-        if (x >= 20 && x <= 180 && y >= 20 && y <= 180) {
-          display.drawPixel(x, y, GxEPD_BLACK);
-          display.drawPixel(x+1, y, GxEPD_BLACK);
-          display.drawPixel(x, y+1, GxEPD_BLACK);
-          display.drawPixel(x+1, y+1, GxEPD_BLACK);
-        }
-      }
     }
 
     void updateLorenz() {
@@ -217,8 +369,8 @@ class WatchFace : public Watchy {
       
       int numPoints = (g_pointCount < MAX_POINTS) ? g_pointCount : MAX_POINTS;
       
-      float screenX[300];
-      float screenY[300];
+      float screenX[LORENZ_MAX_POINTS];
+      float screenY[LORENZ_MAX_POINTS];
       float minX = 999, maxX = -999, minY = 999, maxY = -999;
       
       for (int i = 0; i < numPoints; i++) {
@@ -316,28 +468,210 @@ class WatchFace : public Watchy {
       }
     }
 
-    void drawCircle(int x0, int y0, int radius) {
-      for (int x = -radius; x <= radius; x++) {
-        for (int y = -radius; y <= radius; y++) {
-          if (x*x + y*y <= radius*radius) {
-            display.drawPixel(x0 + x, y0 + y, GxEPD_BLACK);
+    float calculateMoonPhase() {
+      const float MOON_CYCLE_DAYS = 29.53058867;
+      
+      long utcSeconds = 0;
+      
+      int year = currentTime.Year + 1970;
+      int month = currentTime.Month;
+      int day = currentTime.Day;
+      int hour = currentTime.Hour;
+      int minute = currentTime.Minute;
+      int second = currentTime.Second;
+      
+      long daysSince2000 = 0;
+      
+      for (int y = 2000; y < year; y++) {
+        daysSince2000 += (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) ? 366 : 365;
+      }
+      
+      int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+      if (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) {
+        daysInMonth[1] = 29;
+      }
+      for (int m = 1; m < month; m++) {
+        daysSince2000 += daysInMonth[m - 1];
+      }
+      
+      daysSince2000 += day - 1;
+      
+      utcSeconds = daysSince2000 * 86400L;
+      utcSeconds += hour * 3600L;
+      utcSeconds += minute * 60L;
+      utcSeconds += second;
+      
+      long timezoneOffsetSeconds = TIMEZONE_OFFSET_HOURS * 3600L;
+      utcSeconds -= timezoneOffsetSeconds;
+      
+      const float REF_NEW_MOON_DAYS = 5.0 + (18.0 / 24.0) + (14.0 / 1440.0);
+      const float REF_NEW_MOON_SECONDS = REF_NEW_MOON_DAYS * 86400.0;
+      
+      float secondsSinceNewMoon = (float)utcSeconds - REF_NEW_MOON_SECONDS;
+      
+      float daysSinceNewMoon = secondsSinceNewMoon / 86400.0;
+      
+      float daysInCycle = fmod(daysSinceNewMoon, MOON_CYCLE_DAYS);
+      if (daysInCycle < 0) daysInCycle += MOON_CYCLE_DAYS;
+      float phase = daysInCycle / MOON_CYCLE_DAYS;
+      
+      return phase;
+    }
+
+    void drawMoonPhase() {
+      float phase = calculateMoonPhase();
+      
+      int moonRadius = 10;
+      int moonX = 200 - moonRadius - 8;
+      int moonY = moonRadius + 2;
+      
+      bool waxing = (phase < 0.5);
+      float illumination = phase < 0.5 ? phase * 2.0 : (1.0 - phase) * 2.0;
+      
+      for (int x = -moonRadius; x <= moonRadius; x++) {
+        for (int y = -moonRadius; y <= moonRadius; y++) {
+          float dist = sqrt(x*x + y*y);
+          int px = moonX + x;
+          int py = moonY + y;
+          
+          if (px < 0 || px >= 200 || py < 0 || py >= 200) continue;
+          
+          if (dist > moonRadius - 0.5 && dist <= moonRadius + 0.5) {
+            display.drawPixel(px, py, GxEPD_BLACK);
+          }
+          else if (dist < moonRadius - 1) {
+            bool shouldFill = false;
+            
+            if (illumination > 0.95) {
+              shouldFill = true;
+            } else if (illumination < 0.05) {
+              shouldFill = false;
+            } else {
+              float xPos = x / (float)moonRadius;
+              
+              if (waxing) {
+                float threshold = -1.0 + 2.0 * illumination;
+                shouldFill = (xPos >= threshold);
+              } else {
+                float threshold = 1.0 - 2.0 * illumination;
+                shouldFill = (xPos <= threshold);
+              }
+            }
+            
+            if (shouldFill) {
+              display.drawPixel(px, py, GxEPD_BLACK);
+            }
           }
         }
       }
     }
+
+    int calculateDayOfYear() {
+      int year = currentTime.Year + 1970;
+      int month = currentTime.Month;
+      int day = currentTime.Day;
+      
+      int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+      if (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) {
+        daysInMonth[1] = 29;
+      }
+      
+      int dayOfYear = day;
+      for (int m = 1; m < month; m++) {
+        dayOfYear += daysInMonth[m - 1];
+      }
+      
+      return dayOfYear;
+    }
+
+    void calculateSunriseSunset(float& sunriseHour, float& sunsetHour) {
+      float latRad = LATITUDE * PI / 180.0;
+      int dayOfYear = calculateDayOfYear();
+      
+      float declination = 23.45 * PI / 180.0 * sin(2.0 * PI * (284.0 + dayOfYear) / 365.0);
+      
+      float solarElevation = -0.83 * PI / 180.0;
+      
+      float cosHourAngle = (sin(solarElevation) - sin(latRad) * sin(declination)) / (cos(latRad) * cos(declination));
+      
+      if (cosHourAngle > 1.0) {
+        sunriseHour = -1.0;
+        sunsetHour = -1.0;
+        return;
+      }
+      if (cosHourAngle < -1.0) {
+        sunriseHour = 0.0;
+        sunsetHour = 24.0;
+        return;
+      }
+      
+      float hourAngle = acos(cosHourAngle);
+      
+      float B = 2.0 * PI * (dayOfYear - 81) / 365.0;
+      float equationOfTime = 9.87 * sin(2.0 * B) - 7.53 * cos(B) - 1.5 * sin(B);
+      
+      float longitudeTimeOffset = LONGITUDE / 15.0;
+      float timeCorrection = longitudeTimeOffset - TIMEZONE_OFFSET_HOURS + (equationOfTime / 60.0);
+      
+      float solarNoon = 12.0 - timeCorrection;
+      
+      float sunriseSolar = solarNoon - (hourAngle * 12.0 / PI);
+      float sunsetSolar = solarNoon + (hourAngle * 12.0 / PI);
+      
+      sunriseHour = sunriseSolar;
+      sunsetHour = sunsetSolar;
+      
+      if (sunriseHour < 0) sunriseHour += 24.0;
+      if (sunriseHour >= 24.0) sunriseHour -= 24.0;
+      if (sunsetHour < 0) sunsetHour += 24.0;
+      if (sunsetHour >= 24.0) sunsetHour -= 24.0;
+    }
+
+    void drawSunriseSunset() {
+      float sunriseHour, sunsetHour;
+      calculateSunriseSunset(sunriseHour, sunsetHour);
+      
+      if (sunriseHour < 0 || sunsetHour < 0) {
+        return;
+      }
+      
+      int sunriseH = (int)sunriseHour;
+      int sunriseM = (int)((sunriseHour - sunriseH) * 60.0);
+      int sunsetH = (int)sunsetHour;
+      int sunsetM = (int)((sunsetHour - sunsetH) * 60.0);
+      
+      String sunriseStr = "";
+      if (sunriseH < 10) sunriseStr += "0";
+      sunriseStr += String(sunriseH);
+      if (sunriseM < 10) sunriseStr += "0";
+      sunriseStr += String(sunriseM);
+      
+      String sunsetStr = "";
+      if (sunsetH < 10) sunsetStr += "0";
+      sunsetStr += String(sunsetH);
+      if (sunsetM < 10) sunsetStr += "0";
+      sunsetStr += String(sunsetM);
+      
+      String displayStr = sunriseStr + "/" + sunsetStr;
+      
+      display.setFont(&FreeMonoBold9pt7b);
+      
+      int16_t x1, y1;
+      uint16_t w, h;
+      display.getTextBounds(displayStr, 0, 0, &x1, &y1, &w, &h);
+      
+      int centerX = (200 - w) / 2;
+      display.setCursor(centerX, 200 - 15 + 5);
+      display.print(displayStr);
+    }
 };
 
-const uint64_t WAKE_US = 1ULL * 1000000ULL;
 
 watchySettings settings;
 WatchFace m(settings);
 
 void setup() {
   m.init("");
-  m.showWatchFace(false);
-  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
-  esp_sleep_enable_timer_wakeup(WAKE_US);
-  esp_deep_sleep_start();
 }
 
 void loop() {
