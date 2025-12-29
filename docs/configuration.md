@@ -10,12 +10,17 @@ All settings are located in `chaos/settings.h`. Edit this file to customize beha
 
 ```cpp
 // Wake up settings
-#define WAKE_UP_INTERVAL_MINUTES 0.05  // 3 seconds
+#define WAKE_UP_INTERVAL_MINUTES (0.5/60.0)  // 0.5 seconds
 
 // Lorenz attractor settings
-#define LORENZ_POINTS_PER_UPDATE 50    // Points per refresh
-#define LORENZ_MAX_POINTS 300          // Trajectory buffer size
-#define LORENZ_ROTATION_SPEED 0.5      // Rotation speed
+#define LORENZ_POINTS_PER_UPDATE 5           // Points per refresh
+#define LORENZ_MAX_POINTS 500                // Trajectory buffer size
+#define LORENZ_ROTATION_SPEED 0.0523598776   // Rotation speed (3 degrees per update)
+
+// Location and timezone settings
+#define TIMEZONE_OFFSET_HOURS 1               // Timezone offset from UTC
+#define LATITUDE 52.3676                      // Latitude in degrees
+#define LONGITUDE 4.9041                      // Longitude in degrees
 ```
 
 ## Wake-up Settings
@@ -25,14 +30,16 @@ All settings are located in `chaos/settings.h`. Edit this file to customize beha
 Control how often the watch updates:
 
 ```cpp
-#define WAKE_UP_INTERVAL_MINUTES 0.05  // 3 seconds (fast)
-#define WAKE_UP_INTERVAL_MINUTES 0.1   // 6 seconds (medium)
-#define WAKE_UP_INTERVAL_MINUTES 0.5   // 30 seconds (slow)
-#define WAKE_UP_INTERVAL_MINUTES 1.0   // 1 minute (battery saving)
+#define WAKE_UP_INTERVAL_MINUTES (0.5/60.0)   // 0.5 seconds (very fast)
+#define WAKE_UP_INTERVAL_MINUTES (3.0/60.0)   // 3 seconds (fast)
+#define WAKE_UP_INTERVAL_MINUTES (6.0/60.0)   // 6 seconds (medium)
+#define WAKE_UP_INTERVAL_MINUTES (30.0/60.0)  // 30 seconds (slow)
+#define WAKE_UP_INTERVAL_MINUTES 1.0          // 1 minute (battery saving)
 ```
 
 **Recommendations**:
-- **3 seconds**: Best for watching evolution, higher battery usage
+- **0.5 seconds**: Very smooth evolution, higher battery usage
+- **3 seconds**: Best for watching evolution, good balance
 - **6 seconds**: Good balance of evolution and battery life
 - **30 seconds**: Battery saving mode, slower evolution
 - **1 minute**: Maximum battery life, minimal evolution
@@ -44,10 +51,10 @@ Control how often the watch updates:
 Control how many new points are added each refresh:
 
 ```cpp
-#define LORENZ_POINTS_PER_UPDATE 20    // Slow evolution
-#define LORENZ_POINTS_PER_UPDATE 50    // Default (balanced)
-#define LORENZ_POINTS_PER_UPDATE 100   // Fast evolution
-#define LORENZ_POINTS_PER_UPDATE 200   // Very fast evolution
+#define LORENZ_POINTS_PER_UPDATE 2     // Slow evolution
+#define LORENZ_POINTS_PER_UPDATE 5    // Default (balanced)
+#define LORENZ_POINTS_PER_UPDATE 10   // Fast evolution
+#define LORENZ_POINTS_PER_UPDATE 20   // Very fast evolution
 ```
 
 **Effects**:
@@ -60,9 +67,9 @@ Control trajectory buffer size:
 
 ```cpp
 #define LORENZ_MAX_POINTS 200   // Shorter trails
-#define LORENZ_MAX_POINTS 300   // Default (balanced)
-#define LORENZ_MAX_POINTS 500   // Longer trails
-#define LORENZ_MAX_POINTS 1000  // Very long trails
+#define LORENZ_MAX_POINTS 300   // Medium trails
+#define LORENZ_MAX_POINTS 500   // Default (longer trails)
+#define LORENZ_MAX_POINTS 1000  // Very long trails (may exceed RTC memory)
 ```
 
 **Effects**:
@@ -74,15 +81,66 @@ Control trajectory buffer size:
 Control how fast the 3D view rotates:
 
 ```cpp
-#define LORENZ_ROTATION_SPEED 0.1   // Slow rotation
-#define LORENZ_ROTATION_SPEED 0.5   // Default (balanced)
-#define LORENZ_ROTATION_SPEED 1.0   // Fast rotation
-#define LORENZ_ROTATION_SPEED 2.0   // Very fast rotation
+#define LORENZ_ROTATION_SPEED 0.0174533   // 1 degree per update (slow)
+#define LORENZ_ROTATION_SPEED 0.0523599   // 3 degrees per update (default)
+#define LORENZ_ROTATION_SPEED 0.104720    // 6 degrees per update (fast)
+#define LORENZ_ROTATION_SPEED 0.209440    // 12 degrees per update (very fast)
 ```
 
 **Effects**:
 - **Higher values**: Faster rotation, more dynamic view
 - **Lower values**: Slower rotation, more stable view
+
+## Location and Timezone Configuration
+
+### Timezone Offset
+
+Set your timezone offset from UTC:
+
+```cpp
+#define TIMEZONE_OFFSET_HOURS 1    // Amsterdam (CET) - winter time
+#define TIMEZONE_OFFSET_HOURS 2    // Amsterdam (CEST) - summer time
+#define TIMEZONE_OFFSET_HOURS -5   // New York (EST) - winter time
+#define TIMEZONE_OFFSET_HOURS -4   // New York (EDT) - summer time
+#define TIMEZONE_OFFSET_HOURS 0    // London (GMT) - winter time
+#define TIMEZONE_OFFSET_HOURS 1    // London (BST) - summer time
+#define TIMEZONE_OFFSET_HOURS 9    // Tokyo (JST)
+#define TIMEZONE_OFFSET_HOURS -8   // Los Angeles (PST) - winter time
+#define TIMEZONE_OFFSET_HOURS -7   // Los Angeles (PDT) - summer time
+```
+
+**Note**: Remember to update this value when daylight saving time changes!
+
+### Location Coordinates
+
+Set your latitude and longitude for accurate sunrise/sunset calculations:
+
+```cpp
+// Amsterdam, Netherlands
+#define LATITUDE 52.3676
+#define LONGITUDE 4.9041
+
+// New York, USA
+#define LATITUDE 40.7128
+#define LONGITUDE -74.0060
+
+// London, UK
+#define LATITUDE 51.5074
+#define LONGITUDE -0.1278
+
+// Tokyo, Japan
+#define LATITUDE 35.6762
+#define LONGITUDE 139.6503
+
+// Los Angeles, USA
+#define LATITUDE 34.0522
+#define LONGITUDE -118.2437
+```
+
+**Finding Your Coordinates**:
+- Use Google Maps: Right-click on your location → Coordinates
+- Use online tools: Search "latitude longitude finder"
+- Format: Decimal degrees (e.g., 52.3676, not 52°22'03")
 
 ## Advanced Configuration
 
@@ -129,9 +187,9 @@ For maximum battery life:
 
 ```cpp
 #define WAKE_UP_INTERVAL_MINUTES 1.0   // 1 minute updates
-#define LORENZ_POINTS_PER_UPDATE 20    // Fewer points
+#define LORENZ_POINTS_PER_UPDATE 2     // Fewer points
 #define LORENZ_MAX_POINTS 200          // Shorter trails
-#define LORENZ_ROTATION_SPEED 0.2      // Slow rotation
+#define LORENZ_ROTATION_SPEED 0.0174533 // Slow rotation (1 degree)
 ```
 
 **Expected battery life**: 10-14 days
@@ -141,10 +199,10 @@ For maximum battery life:
 For maximum visual impact:
 
 ```cpp
-#define WAKE_UP_INTERVAL_MINUTES 0.05  // 3 second updates
-#define LORENZ_POINTS_PER_UPDATE 100   // Many points
-#define LORENZ_MAX_POINTS 500          // Long trails
-#define LORENZ_ROTATION_SPEED 1.0      // Fast rotation
+#define WAKE_UP_INTERVAL_MINUTES (0.5/60.0)  // 0.5 second updates
+#define LORENZ_POINTS_PER_UPDATE 10          // Many points
+#define LORENZ_MAX_POINTS 500                // Long trails
+#define LORENZ_ROTATION_SPEED 0.104720       // Fast rotation (6 degrees)
 ```
 
 **Expected battery life**: 3-5 days
@@ -154,13 +212,13 @@ For maximum visual impact:
 Good balance of performance and battery:
 
 ```cpp
-#define WAKE_UP_INTERVAL_MINUTES 0.05  // 3 second updates
-#define LORENZ_POINTS_PER_UPDATE 50    // Moderate points
-#define LORENZ_MAX_POINTS 300          // Medium trails
-#define LORENZ_ROTATION_SPEED 0.5      // Moderate rotation
+#define WAKE_UP_INTERVAL_MINUTES (0.5/60.0)  // 0.5 second updates
+#define LORENZ_POINTS_PER_UPDATE 5           // Moderate points
+#define LORENZ_MAX_POINTS 500                // Longer trails
+#define LORENZ_ROTATION_SPEED 0.0523599      // Moderate rotation (3 degrees)
 ```
 
-**Expected battery life**: 7-10 days
+**Expected battery life**: 5-7 days
 
 ## Custom Configurations
 
@@ -189,15 +247,16 @@ To share your configuration:
 
 | Update Interval | Points/Update | Max Points | Estimated Battery Life |
 |----------------|---------------|------------|----------------------|
-| 3 seconds      | 50           | 300        | 7-10 days            |
-| 6 seconds      | 50           | 300        | 10-14 days           |
-| 30 seconds     | 50           | 300        | 14-20 days           |
-| 1 minute       | 50           | 300        | 20-30 days           |
+| 0.5 seconds    | 5            | 500        | 5-7 days             |
+| 3 seconds      | 5            | 500        | 7-10 days            |
+| 6 seconds      | 5            | 500        | 10-14 days           |
+| 30 seconds     | 5            | 500        | 14-20 days           |
+| 1 minute       | 5            | 500        | 20-30 days           |
 
 ### Memory Usage
 
-- **RTC Memory**: ~2KB for state variables
-- **Flash Memory**: ~15KB for program code
+- **RTC Memory**: ~6KB for state variables
+- **Flash Memory**: ~20KB for program code
 - **RAM**: Minimal during deep sleep
 
 ## Troubleshooting Configuration
@@ -211,6 +270,11 @@ To share your configuration:
 **Battery drains quickly**:
 - Increase `WAKE_UP_INTERVAL_MINUTES`
 - Decrease `LORENZ_POINTS_PER_UPDATE`
+
+**Moon phase or sunrise/sunset incorrect**:
+- Check `TIMEZONE_OFFSET_HOURS` matches your timezone
+- Verify `LATITUDE` and `LONGITUDE` are correct
+- Remember to update timezone for daylight saving time
 
 **Pattern not visible**:
 - Check display bounds in `drawTrajectory()`

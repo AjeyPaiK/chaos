@@ -80,7 +80,8 @@ This guide will walk you through setting up the Lorenz Attractor Watch Face on y
 1. Disconnect the USB cable
 2. Press the reset button on your Watchy
 3. The Lorenz attractor should start appearing immediately
-4. The pattern will begin evolving every 3 seconds
+4. The pattern will begin evolving every 0.5 seconds
+5. Moon phase and sunrise/sunset will display based on configured location
 
 ## Troubleshooting
 
@@ -124,9 +125,11 @@ After successful installation, you should see:
 
 1. **Time display** in 24-hour format
 2. **Date** showing current day and date
-3. **Battery icon** (solid for full, outline for low)
-4. **Step counter** showing your steps
-5. **Lorenz attractor pattern** that evolves every 3 seconds
+3. **Moon phase indicator** showing current lunar phase
+4. **Battery indicator** showing percentage (0-100%)
+5. **Step counter** showing your steps
+6. **Sunrise/sunset times** based on your location
+7. **Lorenz attractor pattern** that evolves every 0.5 seconds
 
 ## Next Steps
 
