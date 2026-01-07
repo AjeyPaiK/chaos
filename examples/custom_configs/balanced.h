@@ -35,4 +35,12 @@
 #define LORENZ_MAX_POINTS 300          // Medium trails
 #define LORENZ_ROTATION_SPEED 0.5      // Moderate rotation
 
+// Display refresh settings - balanced refresh strategy
+#define FULL_REFRESH_INTERVAL 20       // Full refresh every 60 seconds (20 × 3s)
+
+// Location and timezone settings (update for your location)
+#define TIMEZONE_OFFSET_HOURS 1        // Amsterdam (CET) - change to 2 for CEST (summer time)
+#define LATITUDE 52.3676               // Latitude in degrees
+#define LONGITUDE 4.9041               // Longitude in degrees
+
 #endif

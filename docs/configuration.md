@@ -17,6 +17,9 @@ All settings are located in `chaos/settings.h`. Edit this file to customize beha
 #define LORENZ_MAX_POINTS 500                // Trajectory buffer size
 #define LORENZ_ROTATION_SPEED 0.0523598776   // Rotation speed (3 degrees per update)
 
+// Display refresh settings
+#define FULL_REFRESH_INTERVAL 60             // Full refresh every N updates (60 = 30 seconds)
+
 // Location and timezone settings
 #define TIMEZONE_OFFSET_HOURS 1               // Timezone offset from UTC
 #define LATITUDE 52.3676                      // Latitude in degrees
@@ -90,6 +93,51 @@ Control how fast the 3D view rotates:
 **Effects**:
 - **Higher values**: Faster rotation, more dynamic view
 - **Lower values**: Slower rotation, more stable view
+
+## Display Refresh Settings
+
+### Full Refresh Interval
+
+Control how often full display refreshes occur to prevent e-ink ghosting:
+
+```cpp
+#define FULL_REFRESH_INTERVAL 30   // Every 15 seconds (aggressive, cleaner display)
+#define FULL_REFRESH_INTERVAL 60   // Every 30 seconds (default, balanced)
+#define FULL_REFRESH_INTERVAL 120  // Every 60 seconds (battery saving, may show ghosting)
+#define FULL_REFRESH_INTERVAL 240  // Every 120 seconds (maximum battery, more ghosting)
+```
+
+**How It Works**:
+- Most updates use **partial refresh** (fast, low power, minimal flashing)
+- Every Nth update uses **full refresh** (complete regeneration, eliminates ghosting)
+- Full refresh counter resets to 0 after each full refresh
+
+**Effects**:
+- **Lower values**: More frequent full refreshes
+  - Cleaner display with no ghosting
+  - Higher battery drain
+  - More visible flashing
+  - Better for display longevity
+  
+- **Higher values**: Less frequent full refreshes
+  - Some temporary ghosting may appear
+  - Better battery life
+  - Less visible flashing
+  - Smoother animation between full refreshes
+
+**Calculating Intervals**:
+- With 0.5-second updates: `FULL_REFRESH_INTERVAL × 0.5 = seconds between full refreshes`
+- Examples:
+  - 30 = 15 seconds
+  - 60 = 30 seconds (recommended)
+  - 120 = 60 seconds
+  - 240 = 2 minutes
+
+**Recommendations**:
+- **Default (60)**: Best balance for most users
+- **Ghosting visible**: Lower to 30-40
+- **Battery critical**: Increase to 120-180
+- **Static display**: Can go up to 240+
 
 ## Location and Timezone Configuration
 
@@ -190,6 +238,7 @@ For maximum battery life:
 #define LORENZ_POINTS_PER_UPDATE 2     // Fewer points
 #define LORENZ_MAX_POINTS 200          // Shorter trails
 #define LORENZ_ROTATION_SPEED 0.0174533 // Slow rotation (1 degree)
+#define FULL_REFRESH_INTERVAL 120      // Full refresh every 2 hours
 ```
 
 **Expected battery life**: 10-14 days
@@ -203,6 +252,7 @@ For maximum visual impact:
 #define LORENZ_POINTS_PER_UPDATE 10          // Many points
 #define LORENZ_MAX_POINTS 500                // Long trails
 #define LORENZ_ROTATION_SPEED 0.104720       // Fast rotation (6 degrees)
+#define FULL_REFRESH_INTERVAL 40             // Full refresh every 20 seconds
 ```
 
 **Expected battery life**: 3-5 days
@@ -216,6 +266,7 @@ Good balance of performance and battery:
 #define LORENZ_POINTS_PER_UPDATE 5           // Moderate points
 #define LORENZ_MAX_POINTS 500                // Longer trails
 #define LORENZ_ROTATION_SPEED 0.0523599      // Moderate rotation (3 degrees)
+#define FULL_REFRESH_INTERVAL 60             // Full refresh every 30 seconds
 ```
 
 **Expected battery life**: 5-7 days
@@ -270,6 +321,11 @@ To share your configuration:
 **Battery drains quickly**:
 - Increase `WAKE_UP_INTERVAL_MINUTES`
 - Decrease `LORENZ_POINTS_PER_UPDATE`
+- Increase `FULL_REFRESH_INTERVAL`
+
+**Screen ghosting/burn-in visible**:
+- Decrease `FULL_REFRESH_INTERVAL` for more frequent full refreshes
+- Try values between 30-60 for best results
 
 **Moon phase or sunrise/sunset incorrect**:
 - Check `TIMEZONE_OFFSET_HOURS` matches your timezone

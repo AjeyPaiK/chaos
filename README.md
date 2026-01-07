@@ -127,6 +127,9 @@ Edit `chaos/settings.h` to customize behavior:
 #define LORENZ_MAX_POINTS 500                // Trajectory buffer size
 #define LORENZ_ROTATION_SPEED 0.0523598776  // Rotation speed (3 degrees per update)
 
+// Display refresh settings
+#define FULL_REFRESH_INTERVAL 60             // Full refresh every N updates (60 = 30 seconds)
+
 // Location and timezone settings
 #define TIMEZONE_OFFSET_HOURS 1              // Your timezone offset from UTC
 #define LATITUDE 52.3676                     // Your latitude
@@ -143,6 +146,11 @@ Edit `chaos/settings.h` to customize behavior:
 ### Changing Wake-up Frequency
 - **Faster updates**: Decrease `WAKE_UP_INTERVAL_MINUTES`
 - **Battery saving**: Increase `WAKE_UP_INTERVAL_MINUTES`
+
+### Display Refresh Strategy
+- **More frequent full refreshes**: Decrease `FULL_REFRESH_INTERVAL` (reduces ghosting but drains battery)
+- **Less frequent full refreshes**: Increase `FULL_REFRESH_INTERVAL` (saves battery but may show ghosting)
+- **Note**: The watch uses partial refreshes between full refreshes to preserve battery and reduce screen wear
 
 ### Visual Adjustments
 - **Larger pattern**: Modify window bounds in `drawTrajectory()`
@@ -167,6 +175,11 @@ Edit `chaos/settings.h` to customize behavior:
 - Verify scaling parameters
 - Ensure proper centering
 
+**Screen ghosting/burn-in**:
+- Reduce `FULL_REFRESH_INTERVAL` for more frequent full refreshes (e.g., 30 = 15 seconds)
+- E-ink displays naturally have some ghosting with partial refreshes
+- Full refreshes every 30 seconds should prevent permanent burn-in
+
 ### Debug Mode
 Add debug output by uncommenting debug sections in the code:
 ```cpp
@@ -176,10 +189,10 @@ Add debug output by uncommenting debug sections in the code:
 
 ## Performance Metrics
 
-- **Battery Life**: ~5-7 days with 0.5-second updates
+- **Battery Life**: ~5-7 days with 0.5-second updates and optimized refresh strategy
 - **Memory Usage**: ~6KB RTC memory for state persistence
 - **CPU Usage**: Minimal during deep sleep, brief activity during updates
-- **Display Refresh**: Full e-ink refresh every 0.5 seconds
+- **Display Refresh**: Partial refresh every 0.5 seconds, full refresh every 30 seconds to prevent ghosting
 
 ## Contributing
 

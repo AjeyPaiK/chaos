@@ -86,6 +86,7 @@ RTC_DATA_ATTR float g_trajectory[LORENZ_MAX_POINTS][3];   // Trajectory points (
 RTC_DATA_ATTR int g_pointCount = 0;                        // Point counter
 RTC_DATA_ATTR int g_trajectoryIndex = 0;                   // Circular buffer index
 RTC_DATA_ATTR float g_rotationAngle = 0.0;                 // View rotation
+RTC_DATA_ATTR int g_updateCounter = 0;                     // Full refresh counter
 ```
 
 ### Memory Layout
@@ -97,8 +98,9 @@ RTC_DATA_ATTR float g_rotationAngle = 0.0;                 // View rotation
 | `g_pointCount` | int | 4 bytes | Number of stored points |
 | `g_trajectoryIndex` | int | 4 bytes | Circular buffer position |
 | `g_rotationAngle` | float | 4 bytes | 3D view rotation |
+| `g_updateCounter` | int | 4 bytes | Full refresh counter |
 
-**Total RTC Memory Usage**: ~6,024 bytes
+**Total RTC Memory Usage**: ~6,028 bytes
 
 ## 3D to 2D Projection
 
@@ -175,11 +177,13 @@ void deepSleep() {
 
 1. **Wake-up**: ESP32 exits deep sleep
 2. **Initialize**: RTC memory variables restored
-3. **Update Lorenz**: 5 integration steps
-4. **Add Points**: Store new trajectory points
-5. **Rotate View**: Update 3D rotation angle
-6. **Render**: Draw pattern, moon phase, sunrise/sunset, and watch elements
-7. **Sleep**: Enter deep sleep for 0.5 seconds
+3. **Check Refresh**: Increment counter and determine refresh type (partial/full)
+4. **Update Lorenz**: 5 integration steps
+5. **Add Points**: Store new trajectory points
+6. **Rotate View**: Update 3D rotation angle
+7. **Render**: Draw pattern, moon phase, sunrise/sunset, and watch elements
+8. **Display**: Partial refresh (fast) or full refresh (every 60 updates)
+9. **Sleep**: Enter deep sleep for 0.5 seconds
 
 ## Display Management
 
@@ -190,7 +194,39 @@ The Watchy uses a 200x200 pixel e-ink display:
 - **Resolution**: 200x200 pixels
 - **Drawing Area**: 190x190 pixels (5px margins)
 - **Color Depth**: 1-bit (black/white)
-- **Refresh Type**: Full refresh every update
+- **Refresh Strategy**: Partial refresh every 0.5s, full refresh every 30s (configurable)
+
+### Refresh Strategy
+
+To balance smooth animation with display longevity and battery life, the watch uses a hybrid refresh strategy:
+
+**Partial Refresh (Most Updates)**:
+- Fast update (~200ms)
+- Lower power consumption
+- Preserves display lifespan
+- May show slight ghosting
+- Used for 59 out of 60 updates
+
+**Full Refresh (Every 30 seconds)**:
+- Complete display regeneration
+- Eliminates ghosting
+- Higher power consumption (~400ms)
+- Prevents permanent screen burn-in
+- Used every 60th update
+
+```cpp
+g_updateCounter++;
+bool fullRefresh = (g_updateCounter >= FULL_REFRESH_INTERVAL);
+if (fullRefresh) {
+  g_updateCounter = 0;
+}
+showWatchFace(fullRefresh);
+```
+
+**Configuration**: Adjust `FULL_REFRESH_INTERVAL` in `settings.h`:
+- Lower values = more frequent full refreshes (cleaner, more battery drain)
+- Higher values = fewer full refreshes (more ghosting, better battery)
+- Recommended: 60 updates (30 seconds) for optimal balance
 
 ### Drawing Pipeline
 
@@ -205,7 +241,7 @@ The Watchy uses a 200x200 pixel e-ink display:
 9. **Draw Points**: Render trajectory as 2x2 squares
 10. **Draw Lines**: Connect consecutive points
 11. **Draw Sunrise/Sunset**: Calculate and display solar times
-12. **Update Display**: `display.display()`
+12. **Update Display**: `display.display(fullRefresh)` - partial or full based on counter
 
 ## Performance Analysis
 

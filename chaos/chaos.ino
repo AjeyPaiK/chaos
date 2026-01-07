@@ -53,6 +53,7 @@ RTC_DATA_ATTR float g_trajectory[LORENZ_MAX_POINTS][3];
 RTC_DATA_ATTR int g_pointCount = 0;
 RTC_DATA_ATTR int g_trajectoryIndex = 0;
 RTC_DATA_ATTR float g_rotationAngle = 0.0;
+RTC_DATA_ATTR int g_updateCounter = 0;
 
 extern bool alreadyInMenu;
 extern long gmtOffset;
@@ -76,14 +77,22 @@ class WatchFace : public Watchy {
       case ESP_SLEEP_WAKEUP_TIMER:
         RTC.read(currentTime);
         switch (guiState) {
-        case WATCHFACE_STATE:
-          showWatchFace(true);
+        case WATCHFACE_STATE: {
+          g_updateCounter++;
+          // Full refresh periodically to prevent ghosting
+          // Partial refresh otherwise for smoother animation and battery saving
+          bool fullRefresh = (g_updateCounter >= FULL_REFRESH_INTERVAL);
+          if (fullRefresh) {
+            g_updateCounter = 0;
+          }
+          showWatchFace(fullRefresh);
           if (settings.vibrateOClock) {
             if (currentTime.Minute == 0 && currentTime.Second == 0) {
               vibMotor(75, 4);
             }
           }
           break;
+        }
         case MAIN_MENU_STATE:
           if (alreadyInMenu) {
             guiState = WATCHFACE_STATE;
@@ -98,14 +107,21 @@ class WatchFace : public Watchy {
       case ESP_SLEEP_WAKEUP_EXT0:
         RTC.read(currentTime);
         switch (guiState) {
-        case WATCHFACE_STATE:
-          showWatchFace(true);
+        case WATCHFACE_STATE: {
+          g_updateCounter++;
+          // Full refresh periodically to prevent ghosting
+          bool fullRefresh = (g_updateCounter >= FULL_REFRESH_INTERVAL);
+          if (fullRefresh) {
+            g_updateCounter = 0;
+          }
+          showWatchFace(fullRefresh);
           if (settings.vibrateOClock) {
             if (currentTime.Minute == 0) {
               vibMotor(75, 4);
             }
           }
           break;
+        }
         case MAIN_MENU_STATE:
           if (alreadyInMenu) {
             guiState = WATCHFACE_STATE;
@@ -122,14 +138,21 @@ class WatchFace : public Watchy {
         handleButtonPress();
         break;
       #ifdef ARDUINO_ESP32S3_DEV
-      case ESP_SLEEP_WAKEUP_EXT0:
+      case ESP_SLEEP_WAKEUP_EXT0: {
         pinMode(USB_DET_PIN, INPUT);
         USB_PLUGGED_IN = (digitalRead(USB_DET_PIN) == 1);
         if(guiState == WATCHFACE_STATE){
           RTC.read(currentTime);
-          showWatchFace(true);
+          g_updateCounter++;
+          // Full refresh periodically to prevent ghosting
+          bool fullRefresh = (g_updateCounter >= FULL_REFRESH_INTERVAL);
+          if (fullRefresh) {
+            g_updateCounter = 0;
+          }
+          showWatchFace(fullRefresh);
         }
         break;
+      }
       #endif
       default:
         Watchy::init(datetime);
@@ -183,6 +206,11 @@ class WatchFace : public Watchy {
       esp_sleep_enable_timer_wakeup(wakeup_us);
       #endif
       esp_deep_sleep_start();
+    }
+    
+    void showWatchFace(bool fullRefresh) {
+      drawWatchFace();
+      display.display(!fullRefresh);
     }
     
     void drawWatchFace() {

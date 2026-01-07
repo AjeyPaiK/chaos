@@ -32,6 +32,12 @@
 #define LORENZ_MAX_POINTS 500
 #define LORENZ_ROTATION_SPEED 0.0523598776
 
+// Display refresh settings
+// Full refresh interval (in number of updates) to prevent e-ink ghosting
+// With 0.5-second updates: 60 = 30 seconds, 120 = 60 seconds
+// More frequent full refreshes reduce ghosting but drain battery faster
+#define FULL_REFRESH_INTERVAL 180 // 180 = 90 seconds
+
 // Timezone offset for moon phase calculation (in hours from UTC)
 // Examples:
 //   Amsterdam (CET): 1  (winter) or 2 (summer/CEST)
